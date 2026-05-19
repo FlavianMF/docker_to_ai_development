@@ -35,5 +35,11 @@ RUN curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
 # Workspace
 WORKDIR /workspace
 
+# Copy and set entrypoint
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["entrypoint.sh"]
+
 # Keep container alive
 CMD ["bash"]

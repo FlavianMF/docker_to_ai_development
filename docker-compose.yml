@@ -1,0 +1,34 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    # Uncomment for GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  hermes:
+    build: .
+    container_name: hermes-agent
+    volumes:
+      - ./workspace:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file: .env
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_NOPRELOAD=1 # Don't keep models in memory if not used
+    stdin_open: true
+    tty: true
+
+volumes:
+  ollama_data:
