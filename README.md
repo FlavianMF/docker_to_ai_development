@@ -8,11 +8,12 @@ docker build -t hermes-docker .
 ```
 
 ## Run
-Must pass API keys via env.
+1. Copy `.env.example` to `.env` and add keys.
+2. Run with env file:
 ```bash
 docker run -it \
+  --env-file .env \
   -v $(pwd)/workspace:/workspace \
-  -e OPENROUTER_API_KEY=your_key \
   hermes-docker
 ```
 

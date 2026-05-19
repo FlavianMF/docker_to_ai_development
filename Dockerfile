@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     ca-certificates \
+    python3-dotenv \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js (for MCP)
