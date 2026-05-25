@@ -1,5 +1,9 @@
 # Hermes Docker MOC
 
+- [[PROMPT|Local System Prompt]]
+- [[PRD|Product Requirements Document]]
+- [[architecture|Architecture Decision Log]]
+- [[engineering_notes|Engineering Notes]]
 - [[hermes-agent-research|Hermes Agent Research]]
 - [[nvidia-nim-research|NVIDIA NIM Research]]
 - [[docker-setup|Docker Setup]]
