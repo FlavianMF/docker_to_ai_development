@@ -12,3 +12,4 @@
 - [[resource-optimization|Resource Optimization & CPU Setup]]
 - [[oauth-setup|Google OAuth & Remote Access]]
 - [[usage-guide|Usage Guide & Multi-Instance Support]]
+- [[resource-management-design|Design: Container & Resource Management]]

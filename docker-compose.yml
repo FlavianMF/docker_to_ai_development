@@ -1,19 +1,11 @@
 services:
   ollama:
     image: ollama/ollama:latest
-    container_name: ollama
+    container_name: ${OLLAMA_CONTAINER_NAME:-ollama}
     volumes:
-      - ollama_data:/root/.ollama
+      - ${OLLAMA_DATA_VOLUME:-ollama_data}:/root/.ollama
     ports:
-      - "11434:11434"
-    # Uncomment for GPU support
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+      - "${OLLAMA_PORT:-11434}:11434"
 
   hermes:
     build: .
@@ -21,16 +13,16 @@ services:
     volumes:
       - ${WORKSPACE_PATH:-./workspace}:/workspace
       - /var/run/docker.sock:/var/run/docker.sock
-      - gemini_data:/root/.gemini
+      - ${GEMINI_DATA_PATH:-gemini_data}:/root/.gemini
       - ${OBSIDIAN_VAULT_PATH:-/mnt/c/Users/saoflfer/Documents/obsidian/flv_fit_vault}:/knowledge
     env_file: .env
     depends_on:
       - ollama
     ports:
-      - "${OAUTH_PORT:-8080}:8080" # For OAuth/Remote access
+      - "${OAUTH_PORT:-8080}:8080"
     environment:
       - OLLAMA_HOST=http://ollama:11434
-      - OLLAMA_NOPRELOAD=1 # Don't keep models in memory if not used
+      - OLLAMA_NOPRELOAD=1
     stdin_open: true
     tty: true
 
