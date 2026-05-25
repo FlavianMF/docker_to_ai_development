@@ -1,126 +1,94 @@
 # Hermes Docker Setup
 
-Hermes agent inside Docker container for autonomous development.
+A professional-grade containerized environment for autonomous development using **Hermes Agent** and **Google Gemini CLI**. This setup provides a safe, isolated, and scalable "sandbox" for AI agents to interact with code, manage infrastructure, and maintain a global knowledge base.
 
-## Features
+## 🚀 Key Features
 
-- **Hermes Agent**: Autonomous CLI agent.
-- **Google Gemini CLI**: Pre-installed for advanced AI orchestration.
-- **Ollama Integration**: Run local LLMs (Hermes-3) via Docker Compose.
-- **NVIDIA NIM Support**: Ready for cloud-based inference.
-- **Docker-in-Docker**: Agent can spawn its own tool-use containers.
-- **Global Knowledge**: Obsidian vault mounted at `/knowledge` for direct updates.
-- **OAuth Ready**: Port 8080 exposed for Google/Gemini authentication flows.
-- **Automated Connection**: Hermes container waits for and connects to Ollama automatically.
+- **Agentic Orchestration**: Pre-installed **Hermes Agent** and **Google Gemini CLI**.
+- **Multi-Instance Architecture**: Spin up isolated environments for different projects using a single configuration.
+- **Global Knowledge Integration**: Native mount for **Obsidian Vaults** at `/knowledge` for real-time synchronization of engineering notes.
+- **Ollama Integration**: Automated connection to local LLMs (Hermes-3, Llama-3.1, etc.).
+- **Docker-in-Docker (DooD)**: Enables agents to spawn and manage their own tool-use containers.
+- **OAuth Ready**: Dedicated port (8080) and persistence for Google/Gemini authentication flows.
 
-## Prerequisites
+## 🛠️ Prerequisites
 
-- Docker and Docker Compose installed.
+- Docker and Docker Compose.
+- (Optional) NVIDIA GPU for hardware acceleration.
 
-## Getting Started (Multi-Container with Ollama)
+## 🏁 Getting Started
 
-1. **Prepare Environment**:
+### 1. Initialize Environment
+```bash
+cp .env.example .env
+# Edit .env to set your OBSIDIAN_VAULT_PATH and other keys
+```
 
-   ```bash
-   cp .env.example .env
-   # Add your NVIDIA_API_KEY if using NIM, or leave as is for local only.
-   ```
+### 2. Launch Services
+```bash
+docker compose up -d
+```
 
-2. **Start Services**:
+### 3. Initialize Models (Local Ollama)
+```bash
+docker exec -it ollama ollama pull hermes3:8b
+```
 
-   ```bash
-   docker compose up -d
-   ```
+### 4. Enter the Agent Environment
+```bash
+# To use Hermes Agent
+docker exec -it hermes-agent hermes
 
-3. **Pull Local Model**:
-   Execute this inside the Ollama container to download the model:
+# To use Gemini CLI
+docker exec -it hermes-agent gemini
+```
 
-   ```bash
-   docker exec -it ollama ollama pull hermes3
-   ```
+---
 
-   _(Use `hermes3:3b` for faster downloads on low-spec hardware)_
+## 📂 Multi-Instance Management
 
-   **Recommended Models:**
-   - **Light** (Fast, low RAM < 4GB):
-     - `hermes3:3b` (Optimized for agents)
-     - `phi3:latest` (Microsoft, very fast)
-   - **Medium** (Balanced, 8GB+ RAM):
-     - `hermes3:8b` (Recommended default)
-     - `llama3.1:8b` (Meta, high quality)
-   - **Large** (Slow/GPU needed, 32GB+ RAM):
-     - `hermes3:70b` (State of the art)
-     - `qwen2.5:72b` (Excellent reasoning)
+Work on multiple projects simultaneously without interference. Each instance gets its own workspace and identity while sharing the core LLM backbone.
 
-4. **Start Hermes Agent**:
+### Spawning a new instance:
+```bash
+COMPOSE_PROJECT_NAME=my-web-app \
+HERMES_CONTAINER_NAME=hermes-web-app \
+WORKSPACE_PATH=./projects/web-app \
+OAUTH_PORT=8081 \
+docker compose up -d
+```
 
-   ```bash
-   docker exec -it hermes-agent hermes
-   ```
+### Resource Isolation:
+- **`COMPOSE_PROJECT_NAME`**: Isolates network and service stacks.
+- **`WORKSPACE_PATH`**: Mounts a specific local folder to `/workspace`.
+- **`OAUTH_PORT`**: Unique port for Gemini CLI authentication callbacks.
 
-   **Or use Gemini CLI**:
+---
 
-   ```bash
-   docker exec -it hermes-agent gemini
-   ```
+## 🧠 Knowledge Base Integration
 
-## Setup Inside Container
+Your Obsidian vault is automatically mounted to `/knowledge` inside the container. This allows the agent to:
+1.  Read engineering standards and architectural patterns.
+2.  Update project documentation and permanent notes.
+3.  Maintain a "Global Brain" across multiple development tasks.
 
-On your first run, you may need to configure the provider:
+---
 
+## ⚙️ Setup & Configuration
+
+Inside the container, initialize your preferred AI provider:
 ```bash
 hermes setup
 ```
+- **Local (Ollama)**: Use `http://ollama:11434`.
+- **Cloud (NVIDIA NIM)**: Use `https://integrate.api.nvidia.com/v1` with your API key.
 
-- For Ollama: Select `Ollama` provider. The host `http://ollama:11434` is set automatically.
-- For NVIDIA: Select `OpenAI` compatible and use `https://integrate.api.nvidia.com/v1`.
+## 📖 Documentation
+Detailed guides are available in the `docs/` directory:
+- [[usage-guide|Usage & Multi-Instance Guide]]
+- [[ollama-setup|Local LLM Setup]]
+- [[oauth-setup|OAuth & Remote Access]]
+- [[docker-in-docker|Docker-in-Docker Architecture]]
 
-## Workspace
-
-The `./workspace` directory on your host is mounted to `/workspace` in the container. Your code and projects should live there for persistence.
-
-## Single Container Run (Cloud Only)
-
-If you don't want to run local Ollama:
-
-```bash
-docker build -t hermes-docker .
-docker run -it \
-  --env-file .env \
-  -v $(pwd)/workspace:/workspace \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  hermes-docker
-```
-
-## Documentation
-
-See `docs/index.md` for the full Map of Concepts and detailed guides.
-
-## Multi-Instance Management (Working on multiple projects)
-
-You can run isolated instances for different projects by using different project names and workspace paths:
-
-1. **Create a project folder** (optional, you can also just use different `.env` files):
-   ```bash
-   mkdir -p projects/my-new-app
-   ```
-
-2. **Run with a specific project name and workspace**:
-   ```bash
-   COMPOSE_PROJECT_NAME=my-new-app \
-   HERMES_CONTAINER_NAME=hermes-my-new-app \
-   WORKSPACE_PATH=./projects/my-new-app \
-   OAUTH_PORT=8081 \
-   docker compose up -d
-   ```
-
-3. **Access the specific instance**:
-   ```bash
-   docker exec -it hermes-my-new-app hermes
-   ```
-
-Each instance will have its own:
-- Isolated container and network.
-- Dedicated workspace directory.
-- Separate port for OAuth if needed.
-- Shared Ollama instance (unless you also rename the ollama service).
+---
+*Created for autonomous engineering workflows.*
