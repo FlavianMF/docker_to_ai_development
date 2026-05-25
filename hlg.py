@@ -3,6 +3,7 @@ import os
 import subprocess
 import json
 import socket
+import glob
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Static, ListItem, ListView, Label, Input, TabbedContent, TabPane, DataTable
 from textual.containers import Container, Horizontal, Vertical
@@ -114,9 +115,9 @@ class PathModal(Screen):
         default_path = os.path.join(WORKSPACE_BASE, self.env_name)
         yield Vertical(
             Label(f"[bold]Passo 2: Caminho para '{self.env_name}'[/bold]"),
-            Label("Caminho absoluto do projeto (vazio para default):"),
+            Label("Caminho absoluto do projeto (TAB para completar):"),
             Input(placeholder=default_path, id="env_path"),
-            Label("Pressione ENTER para criar ou ESC para cancelar"),
+            Label("ENTER: Criar | ESC: Cancelar"),
             id="modal_container"
         )
 
@@ -128,7 +129,35 @@ class PathModal(Screen):
 
     def on_key(self, event) -> None:
         if event.key == "escape":
-            self.dismiss(False) # Indica cancelamento no segundo passo
+            self.dismiss(False)
+        elif event.key == "tab":
+            self._handle_autocomplete()
+            event.prevent_default()
+            event.stop()
+
+    def _handle_autocomplete(self):
+        input_widget = self.query_one("#env_path", Input)
+        current = input_widget.value
+        if not current:
+            return
+        
+        path = os.path.expanduser(current)
+        matches = glob.glob(path + "*")
+        
+        if not matches:
+            return
+            
+        if len(matches) == 1:
+            match = matches[0]
+            if os.path.isdir(match) and not match.endswith("/"):
+                match += "/"
+            input_widget.value = match
+            input_widget.cursor_position = len(match)
+        else:
+            common = os.path.commonprefix(matches)
+            if common:
+                input_widget.value = common
+                input_widget.cursor_position = len(common)
 
 class UpdatePathModal(Screen):
     """Modal para atualizar o caminho de um ambiente existente."""
@@ -141,7 +170,7 @@ class UpdatePathModal(Screen):
             Label("[bold]Atualizar Caminho do Projeto[/bold]"),
             Label(f"Caminho atual: {self.current_path}"),
             Input(value=self.current_path, id="new_path"),
-            Label("Pressione ENTER para salvar ou ESC para cancelar"),
+            Label("TAB: Completar | ENTER: Salvar | ESC: Cancelar"),
             id="modal_container"
         )
 
@@ -151,6 +180,34 @@ class UpdatePathModal(Screen):
     def on_key(self, event) -> None:
         if event.key == "escape":
             self.dismiss(None)
+        elif event.key == "tab":
+            self._handle_autocomplete()
+            event.prevent_default()
+            event.stop()
+
+    def _handle_autocomplete(self):
+        input_widget = self.query_one("#new_path", Input)
+        current = input_widget.value
+        if not current:
+            return
+        
+        path = os.path.expanduser(current)
+        matches = glob.glob(path + "*")
+        
+        if not matches:
+            return
+            
+        if len(matches) == 1:
+            match = matches[0]
+            if os.path.isdir(match) and not match.endswith("/"):
+                match += "/"
+            input_widget.value = match
+            input_widget.cursor_position = len(match)
+        else:
+            common = os.path.commonprefix(matches)
+            if common:
+                input_widget.value = common
+                input_widget.cursor_position = len(common)
 
 class HLGApp(App):
     CSS = """
