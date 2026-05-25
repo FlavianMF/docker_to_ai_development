@@ -1,7 +1,7 @@
 {
     "environments": {
-        "test_2": {
-            "path": "/home/flv/projetos_ai/hermes_docker/workspace/test_2",
+        "teste": {
+            "path": "/home/flv/projetos_web/birthday_counter/",
             "oauth_port": 8080,
             "ollama_port": 11434,
             "status": "active"

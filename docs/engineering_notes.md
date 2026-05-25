@@ -15,5 +15,14 @@
     - Implementada suíte de testes unitários com 7 casos cobrindo o core logic (Spawn, Kill, State, Ports).
 - **Trap**: Testar aplicações TUI (Textual) requer mockar o `App` base para evitar que o loop de eventos bloqueie os testes unitários.
 
+### 2026-05-25: Integração Docker TUI e Estatísticas de Recursos
+- **Problema**: A TUI do HLG mostrava apenas containers com prefixo `hlg_` e não exibia consumo de recursos (CPU/MEM).
+- **Solução**: 
+    - Implementada integração com `docker stats` no `ResourceManager`.
+    - Adicionada coluna de CPU %, MEM e NET I/O na `DataTable` de containers.
+    - Implementado toggle de visualização ('v') para alternar entre "HLG-Only" e "Tudo" (All system resources).
+    - Expandida a suíte de testes de 7 para 17 casos, validando a filtragem e o merge de dados de estatísticas.
+- **Trap**: `docker stats --no-stream` pode ser lento em sistemas com muitos containers ativos. O merge de dados é feito via Name/ID para garantir precisão.
+
 ## Decisões Recorrentes
 - Sempre usar `git checkout -b` para novas features, seguindo a [[Skill - Fluxo de Trabalho de Feature Branch]].
