@@ -89,18 +89,21 @@ class SpawnModal(Screen):
     def compose(self) -> ComposeResult:
         yield Vertical(
             Label("[bold]Criar Novo Ambiente[/bold]"),
-            Label("Nome do ambiente:"),
+            Label("Nome do ambiente (ex: projeto-alpha):"),
             Input(placeholder="projeto-alpha", id="env_name"),
-            Label("Caminho do projeto (opcional):"),
+            Label("Caminho absoluto do projeto (ou deixe vazio para default):"),
             Input(placeholder=WORKSPACE_BASE, id="env_path"),
             Label("Pressione ENTER para criar ou ESC para cancelar"),
             id="modal_container"
         )
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        name = self.query_one("#env_name", Input).value
-        path = self.query_one("#env_path", Input).value
+        name = self.query_one("#env_name", Input).value.strip()
+        path = self.query_one("#env_path", Input).value.strip()
         if name:
+            # Se o path for relativo, expande para absoluto baseado no WORKSPACE_BASE
+            if path and not os.path.isabs(path):
+                path = os.path.abspath(os.path.join(WORKSPACE_BASE, path))
             self.dismiss({"name": name, "path": path or None})
 
     def on_key(self, event) -> None:
@@ -437,7 +440,7 @@ Volumes: {usage.get('Volumes', '')}
             }
             self._save_state()
             self.update_env_list()
-            self.notify(f"Ambiente '{name}' criado com sucesso!")
+            self.notify(f"Ambiente '{name}' criado em: {project_path}")
         except Exception as e:
             self.notify(f"Erro: {e}", severity="error")
 
