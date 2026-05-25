@@ -29,12 +29,21 @@ cp .env.example .env
 docker compose up -d
 ```
 
-### 3. Initialize Models (Local Ollama)
+### 3. Stop Services
+```bash
+# Stop and keep containers
+docker compose stop
+
+# Stop and remove containers
+docker compose down
+```
+
+### 4. Initialize Models (Local Ollama)
 ```bash
 docker exec -it ollama ollama pull hermes3:8b
 ```
 
-### 4. Enter the Agent Environment
+### 5. Enter the Agent Environment
 ```bash
 # To use Hermes Agent
 docker exec -it hermes-agent hermes
@@ -56,6 +65,11 @@ HERMES_CONTAINER_NAME=hermes-web-app \
 WORKSPACE_PATH=./projects/web-app \
 OAUTH_PORT=8081 \
 docker compose up -d
+```
+
+### Stopping a specific instance:
+```bash
+COMPOSE_PROJECT_NAME=my-web-app docker compose down
 ```
 
 ### Resource Isolation:
