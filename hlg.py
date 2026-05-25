@@ -19,22 +19,42 @@ STATE_FILE = os.path.join(BASE_DIR, ".hlg_state.json")
 class ResourceManager:
     """Gerenciador de recursos Docker (Containers e Imagens)."""
     @staticmethod
-    def get_containers():
+    def get_containers(all=False):
         try:
-            cmd = ["docker", "ps", "-a", "--filter", "name=hlg_", "--format", "{{json .}}"]
+            cmd = ["docker", "ps", "-a", "--format", "{{json .}}"]
+            if not all:
+                cmd += ["--filter", "name=hlg_"]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return [json.loads(line) for line in result.stdout.splitlines() if line]
         except:
             return []
 
     @staticmethod
-    def get_images():
+    def get_images(all=False):
         try:
-            cmd = ["docker", "images", "--filter", "reference=hermes_docker*", "--format", "{{json .}}"]
+            cmd = ["docker", "images", "--format", "{{json .}}"]
+            if not all:
+                cmd += ["--filter", "reference=hermes_docker*"]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             return [json.loads(line) for line in result.stdout.splitlines() if line]
         except:
             return []
+
+    @staticmethod
+    def get_container_stats():
+        """Retorna estatísticas de uso de recursos dos containers ativos."""
+        try:
+            cmd = ["docker", "stats", "--no-stream", "--format", "{{json .}}"]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            stats = {}
+            for line in result.stdout.splitlines():
+                if line:
+                    data = json.loads(line)
+                    # Usar Name ou ID como chave
+                    stats[data.get("Name", data.get("ID"))] = data
+            return stats
+        except:
+            return {}
 
     @staticmethod
     def get_disk_usage():
@@ -117,6 +137,7 @@ class HLGApp(App):
         Binding("e", "shell_env", "Shell", show=True),
         Binding("r", "refresh", "Atualizar", show=True),
         Binding("p", "prune", "Prune", show=True),
+        Binding("v", "toggle_view", "Alternar Tudo/HLG", show=True),
         Binding("tab", "switch_focus", "Tab: Entrar/Sair", show=True),
     ]
 
@@ -124,6 +145,7 @@ class HLGApp(App):
         super().__init__()
         self.state = self._load_state()
         self.resource_manager = ResourceManager()
+        self.show_all_resources = False
 
     def action_switch_focus(self) -> None:
         """Alterna o foco entre a barra de abas e o conteúdo."""
@@ -202,19 +224,49 @@ class HLGApp(App):
         """Mantém o foco na barra de abas ao trocar lateralmente."""
         self.query_one(TabbedContent).focus()
 
+    def action_toggle_view(self) -> None:
+        """Alterna entre mostrar apenas recursos HLG ou todos os recursos do sistema."""
+        self.show_all_resources = not self.show_all_resources
+        mode = "TUDO" if self.show_all_resources else "HLG-ONLY"
+        self.notify(f"Modo de visualização: {mode}")
+        self.update_docker_views()
+
     def update_docker_views(self):
         # Update Container Table
         try:
             c_table = self.query_one("#container_table")
-            # Salvar cursor atual se possível
             c_table.clear(columns=True)
-            c_table.add_columns("ID", "NOME", "STATUS", "PORTAS")
+            c_table.add_columns("ID", "NOME", "STATUS", "CPU %", "MEM", "NET I/O")
             c_table.cursor_type = "row"
-            containers = self.resource_manager.get_containers()
+            
+            containers = self.resource_manager.get_containers(all=self.show_all_resources)
+            stats = self.resource_manager.get_container_stats()
+            
             for c in containers:
-                c_table.add_row(c.get("ID", ""), c.get("Names", ""), c.get("Status", ""), c.get("Ports", ""))
+                name = c.get("Names", "")
+                # Tenta buscar stats pelo nome ou ID
+                s = stats.get(name, stats.get(c.get("ID", "")))
+                
+                cpu = s.get("CPUPerc", "N/A") if s else "N/A"
+                mem = s.get("MemUsage", "N/A") if s else "N/A"
+                net = s.get("NetIO", "N/A") if s else "N/A"
+                
+                # Destaca containers HLG se estiver no modo "Tudo"
+                display_name = name
+                if self.show_all_resources and name.startswith("hlg_"):
+                    display_name = f"[bold green]{name}[/bold green]"
+                elif self.show_all_resources and name.startswith("hermes_"):
+                    display_name = f"[bold cyan]{name}[/bold cyan]"
+
+                c_table.add_row(
+                    c.get("ID", ""), 
+                    display_name, 
+                    c.get("Status", ""),
+                    cpu,
+                    mem,
+                    net
+                )
         except Exception as e:
-            # Em testes, query_one pode falhar se o app não estiver rodando
             if "PYTEST_CURRENT_TEST" not in os.environ:
                 pass
             else:
@@ -226,9 +278,14 @@ class HLGApp(App):
             i_table.clear(columns=True)
             i_table.add_columns("ID", "REPOSITÓRIO", "TAG", "TAMANHO")
             i_table.cursor_type = "row"
-            images = self.resource_manager.get_images()
+            images = self.resource_manager.get_images(all=self.show_all_resources)
             for i in images:
-                i_table.add_row(i.get("ID", ""), i.get("Repository", ""), i.get("Tag", ""), i.get("Size", ""))
+                repo = i.get("Repository", "")
+                display_repo = repo
+                if self.show_all_resources and (repo.startswith("hermes_") or "hermes" in repo):
+                    display_repo = f"[bold cyan]{repo}[/bold cyan]"
+                
+                i_table.add_row(i.get("ID", ""), display_repo, i.get("Tag", ""), i.get("Size", ""))
         except Exception as e:
             if "PYTEST_CURRENT_TEST" not in os.environ:
                 pass

@@ -21,19 +21,36 @@ def test_resource_manager_get_containers(mocker):
     mock_run = mocker.patch("subprocess.run")
     mock_run.return_value.stdout = '{"ID": "123", "Names": "hlg_test", "Status": "Up", "Ports": "80"}\n'
     
-    containers = ResourceManager.get_containers()
+    # Test filtered (HLG-only)
+    containers = ResourceManager.get_containers(all=False)
     assert len(containers) == 1
-    assert containers[0]["ID"] == "123"
-    # Search for the string in the command list
+    assert any("--filter" in arg for arg in mock_run.call_args[0][0])
     assert any("name=hlg_" in arg for arg in mock_run.call_args[0][0])
+    
+    # Test all
+    containers = ResourceManager.get_containers(all=True)
+    assert not any("--filter" in arg for arg in mock_run.call_args[0][0])
 
 def test_resource_manager_get_images(mocker):
     mock_run = mocker.patch("subprocess.run")
     mock_run.return_value.stdout = '{"ID": "img1", "Repository": "hermes_docker", "Tag": "latest", "Size": "100MB"}\n'
     
-    images = ResourceManager.get_images()
+    # Test filtered
+    images = ResourceManager.get_images(all=False)
     assert len(images) == 1
-    assert images[0]["ID"] == "img1"
+    assert any("--filter" in arg for arg in mock_run.call_args[0][0])
+    
+    # Test all
+    images = ResourceManager.get_images(all=True)
+    assert not any("--filter" in arg for arg in mock_run.call_args[0][0])
+
+def test_resource_manager_get_container_stats(mocker):
+    mock_run = mocker.patch("subprocess.run")
+    mock_run.return_value.stdout = '{"Name": "c1", "CPUPerc": "1.5%", "MemUsage": "50MB", "NetIO": "1KB/1KB"}\n'
+    
+    stats = ResourceManager.get_container_stats()
+    assert "c1" in stats
+    assert stats["c1"]["CPUPerc"] == "1.5%"
 
 def test_resource_manager_prune(mocker):
     mock_run = mocker.patch("subprocess.run")
@@ -57,16 +74,31 @@ def test_update_docker_views(mock_app, mocker):
     
     mocker.patch.object(mock_app, "query_one", side_effect=mock_query)
     
-    mocker.patch.object(mock_app.resource_manager, "get_containers", return_value=[{"ID": "c1"}])
+    mocker.patch.object(mock_app.resource_manager, "get_containers", return_value=[{"ID": "c1", "Names": "c1"}])
     mocker.patch.object(mock_app.resource_manager, "get_images", return_value=[{"ID": "i1"}])
+    mocker.patch.object(mock_app.resource_manager, "get_container_stats", return_value={"c1": {"CPUPerc": "5%"}})
     mocker.patch.object(mock_app.resource_manager, "get_disk_usage", return_value={"Containers": "10"})
     
     # Explicitly call update_docker_views (the real one)
     HLGApp.update_docker_views(mock_app)
     
     assert mock_c_table.add_row.called
+    # Verify stats merging
+    row_args = mock_c_table.add_row.call_args[0]
+    assert "5%" in row_args
+    
     assert mock_i_table.add_row.called
     assert mock_usage.update.called
+
+def test_action_toggle_view(mock_app, mocker):
+    mocker.patch.object(mock_app, "update_docker_views")
+    
+    # Check initial state (should be set in mock_app fixture or HLGApp constructor)
+    mock_app.show_all_resources = False 
+    
+    mock_app.action_toggle_view()
+    assert mock_app.show_all_resources is True
+    mock_app.update_docker_views.assert_called_once()
 
 def test_action_prune(mock_app, mocker):
     # Ensure update_docker_views is mocked for this test to avoid complexity
