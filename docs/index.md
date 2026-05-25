@@ -7,4 +7,4 @@
 - [[ollama-setup|Ollama Local LLM Setup]]
 - [[resource-optimization|Resource Optimization & CPU Setup]]
 - [[oauth-setup|Google OAuth & Remote Access]]
-- [[usage-guide|Usage Guide]]
+- [[usage-guide|Usage Guide & Multi-Instance Support]]

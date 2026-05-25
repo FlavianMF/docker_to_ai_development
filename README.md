@@ -9,6 +9,7 @@ Hermes agent inside Docker container for autonomous development.
 - **Ollama Integration**: Run local LLMs (Hermes-3) via Docker Compose.
 - **NVIDIA NIM Support**: Ready for cloud-based inference.
 - **Docker-in-Docker**: Agent can spawn its own tool-use containers.
+- **Global Knowledge**: Obsidian vault mounted at `/knowledge` for direct updates.
 - **OAuth Ready**: Port 8080 exposed for Google/Gemini authentication flows.
 - **Automated Connection**: Hermes container waits for and connects to Ollama automatically.
 

@@ -22,6 +22,7 @@ services:
       - ${WORKSPACE_PATH:-./workspace}:/workspace
       - /var/run/docker.sock:/var/run/docker.sock
       - gemini_data:/root/.gemini
+      - ${OBSIDIAN_VAULT_PATH:-/mnt/c/Users/saoflfer/Documents/obsidian/flv_fit_vault}:/knowledge
     env_file: .env
     depends_on:
       - ollama
