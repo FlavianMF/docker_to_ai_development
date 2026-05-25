@@ -79,6 +79,72 @@ def test_action_prune(mock_app, mocker):
     mock_app.update_docker_views.assert_called_once()
     mock_app.notify.assert_called_with("Limpeza (Prune) concluída com sucesso!")
 
+def test_action_stop_env(mock_app, mocker):
+    mock_stop = mocker.patch.object(mock_app.resource_manager, "stop_container", return_value=True)
+    mocker.patch.object(mock_app, "update_docker_views")
+    
+    # Setup selected item
+    mock_list = MagicMock()
+    mock_list.index = 0
+    mock_item = MagicMock()
+    mock_item.name = "test-env"
+    mock_list.children = [mock_item]
+    mocker.patch.object(mock_app, "query_one", return_value=mock_list)
+    
+    mock_app.action_stop_env()
+    
+    mock_stop.assert_called_with("hermes_test-env")
+    mock_app.notify.assert_called_with("Ambiente 'test-env' parado.")
+
+def test_action_shell_env_tmux(mock_app, mocker):
+    mocker.patch.dict(os.environ, {"TMUX": "/tmp/tmux"})
+    mock_run = mocker.patch("subprocess.run")
+    
+    # Setup selected item
+    mock_list = MagicMock()
+    mock_list.index = 0
+    mock_item = MagicMock()
+    mock_item.name = "test-env"
+    mock_list.children = [mock_item]
+    mocker.patch.object(mock_app, "query_one", return_value=mock_list)
+    
+    mock_app.action_shell_env()
+    
+    mock_run.assert_called_once()
+    args = mock_run.call_args[0][0]
+    assert "tmux" in args
+    assert "new-window" in args
+    assert "docker exec -it hermes_test-env /bin/bash" in args
+
+def test_action_shell_env_direct(mock_app, mocker):
+    # Ensure TMUX is NOT in environment
+    mocker.patch.dict(os.environ, {}, clear=True)
+    mock_run = mocker.patch("subprocess.run")
+    # Mock suspend as a context manager
+    mock_suspend = mocker.patch.object(mock_app, "suspend")
+    mock_suspend.return_value.__enter__ = MagicMock()
+    mock_suspend.return_value.__exit__ = MagicMock()
+    
+    # Setup selected item
+    mock_list = MagicMock()
+    mock_list.index = 0
+    mock_item = MagicMock()
+    mock_item.name = "test-env"
+    mock_list.children = [mock_item]
+    mocker.patch.object(mock_app, "query_one", return_value=mock_list)
+    
+    mock_app.action_shell_env()
+    
+    # Verify suspend was used
+    mock_suspend.assert_called_once()
+    # Verify direct docker exec call
+    mock_run.assert_called_once()
+    args = mock_run.call_args[0][0]
+    assert "docker" == args[0]
+    assert "exec" == args[1]
+    assert "-it" == args[2]
+    assert "hermes_test-env" == args[3]
+
 def test_get_free_port(mock_app, mocker):
     mock_socket = mocker.patch("socket.socket")
     # Mock connect_ex to return 0 (busy) then 1 (free)

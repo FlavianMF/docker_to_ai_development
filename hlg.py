@@ -48,6 +48,14 @@ class ResourceManager:
             return {}
 
     @staticmethod
+    def stop_container(name_or_id):
+        try:
+            subprocess.run(["docker", "stop", name_or_id], check=True)
+            return True
+        except:
+            return False
+
+    @staticmethod
     def prune():
         try:
             subprocess.run(["docker", "container", "prune", "-f"], check=True)
@@ -103,8 +111,10 @@ class HLGApp(App):
 
     BINDINGS = [
         Binding("q", "quit", "Sair", show=True),
-        Binding("a", "add_env", "Adicionar", show=True),
-        Binding("d", "delete_env", "Deletar", show=True),
+        Binding("a", "add_env", "Spawn", show=True),
+        Binding("d", "delete_env", "Kill", show=True),
+        Binding("s", "stop_env", "Stop", show=True),
+        Binding("e", "shell_env", "Shell", show=True),
         Binding("r", "refresh", "Atualizar", show=True),
         Binding("p", "prune", "Prune", show=True),
         Binding("tab", "switch_focus", "Tab: Entrar/Sair", show=True),
@@ -254,6 +264,41 @@ Volumes: {usage.get('Volumes', '')}
             if name:
                 self.spawn_logic(name)
         self.push_screen(SpawnModal(), check_name)
+
+    def action_stop_env(self) -> None:
+        """Pausa o container do ambiente selecionado."""
+        list_view = self.query_one("#env_list", ListView)
+        if list_view.index is not None:
+            item = list_view.children[list_view.index]
+            name = item.name
+            if self.resource_manager.stop_container(f"hermes_{name}"):
+                self.notify(f"Ambiente '{name}' parado.")
+                self.update_docker_views()
+            else:
+                self.notify(f"Erro ao parar '{name}'.", severity="error")
+
+    def action_shell_env(self) -> None:
+        """Abre o shell do container (Bash) em uma nova aba do TMUX ou direto no terminal."""
+        list_view = self.query_one("#env_list", ListView)
+        if list_view.index is not None:
+            item = list_view.children[list_view.index]
+            name = item.name
+            container_name = f"hermes_{name}"
+            
+            # Verifica se está no TMUX
+            if "TMUX" in os.environ:
+                bash_cmd = f"docker exec -it {container_name} /bin/bash"
+                try:
+                    # Cria nova janela no tmux e roda o comando
+                    subprocess.run(["tmux", "new-window", "-n", f"shell-{name}", bash_cmd], check=True)
+                    self.notify(f"Shell aberto para '{name}' no TMUX.")
+                except Exception as e:
+                    self.notify(f"Erro TMUX: {e}", severity="error")
+            else:
+                # Fallback: Entra direto no docker suspendendo a TUI temporariamente
+                self.notify("Entrando no container... (Saindo da TUI)")
+                with self.suspend():
+                    subprocess.run(["docker", "exec", "-it", container_name, "/bin/bash"])
 
     def spawn_logic(self, name: str):
         project_path = os.path.join(WORKSPACE_BASE, name)
