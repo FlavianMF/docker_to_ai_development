@@ -1,16 +1,3 @@
 {
-    "environments": {
-        "teste": {
-            "path": "/home/flv/projetos_ai/hermes_docker/workspace/teste",
-            "oauth_port": 8080,
-            "ollama_port": 11434,
-            "status": "active"
-        },
-        "teste_2": {
-            "path": "/home/flv/projetos_ai/hermes_docker/workspace/teste_2",
-            "oauth_port": 8081,
-            "ollama_port": 11435,
-            "status": "active"
-        }
-    }
+    "environments": {}
 }

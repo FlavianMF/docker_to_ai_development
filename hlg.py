@@ -102,17 +102,36 @@ class HLGApp(App):
     """
 
     BINDINGS = [
-        Binding("q", "quit", "Sair"),
-        Binding("a", "add_env", "Adicionar (Spawn)"),
-        Binding("d", "delete_env", "Deletar (Kill)"),
-        Binding("r", "refresh", "Atualizar"),
-        Binding("p", "prune", "Limpar (Prune)"),
+        Binding("q", "quit", "Sair", show=True),
+        Binding("a", "add_env", "Adicionar", show=True),
+        Binding("d", "delete_env", "Deletar", show=True),
+        Binding("r", "refresh", "Atualizar", show=True),
+        Binding("p", "prune", "Prune", show=True),
+        Binding("tab", "switch_focus", "Tab: Entrar/Sair", show=True),
     ]
 
     def __init__(self):
         super().__init__()
         self.state = self._load_state()
         self.resource_manager = ResourceManager()
+
+    def action_switch_focus(self) -> None:
+        """Alterna o foco entre a barra de abas e o conteúdo."""
+        tabs = self.query_one(TabbedContent)
+        if self.focused == tabs:
+            self._focus_active_content()
+        else:
+            tabs.focus()
+
+    def _focus_active_content(self) -> None:
+        tabs = self.query_one(TabbedContent)
+        active_pane = tabs.get_pane(tabs.active)
+        if active_pane.id == "ambientes_pane":
+            self.query_one("#env_list").focus()
+        elif active_pane.id == "containers_pane":
+            self.query_one("#container_table").focus()
+        elif active_pane.id == "imagens_pane":
+            self.query_one("#image_table").focus()
 
     def _load_state(self):
         if os.path.exists(STATE_FILE):
@@ -166,17 +185,12 @@ class HLGApp(App):
     def on_mount(self) -> None:
         self.update_env_list()
         self.update_docker_views()
-        self.query_one("#env_list").focus()
+        self.query_one(TabbedContent).focus()
 
     @on(TabbedContent.TabActivated)
     def on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
-        """Gerencia o foco ao trocar de abas."""
-        if event.pane.id == "ambientes_pane":
-            self.query_one("#env_list").focus()
-        elif event.pane.id == "containers_pane":
-            self.query_one("#container_table").focus()
-        elif event.pane.id == "imagens_pane":
-            self.query_one("#image_table").focus()
+        """Mantém o foco na barra de abas ao trocar lateralmente."""
+        self.query_one(TabbedContent).focus()
 
     def update_docker_views(self):
         # Update Container Table
