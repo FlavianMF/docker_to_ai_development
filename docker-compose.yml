@@ -24,6 +24,8 @@ services:
     env_file: .env
     depends_on:
       - ollama
+    ports:
+      - "8080:8080" # For OAuth/Remote access
     environment:
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_NOPRELOAD=1 # Don't keep models in memory if not used
