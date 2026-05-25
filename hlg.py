@@ -4,6 +4,7 @@ import subprocess
 import json
 import socket
 import glob
+import tempfile
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Static, ListItem, ListView, Label, Input, TabbedContent, TabPane, DataTable
 from textual.containers import Container, Horizontal, Vertical
@@ -115,7 +116,7 @@ class PathModal(Screen):
         default_path = os.path.join(WORKSPACE_BASE, self.env_name)
         yield Vertical(
             Label(f"[bold]Passo 2: Caminho para '{self.env_name}'[/bold]"),
-            Label("Caminho absoluto do projeto (TAB para completar):"),
+            Label("Caminho do projeto (TAB: completar | Ctrl+O: Yazi):"),
             Input(placeholder=default_path, id="env_path"),
             Label("ENTER: Criar | ESC: Cancelar"),
             id="modal_container"
@@ -134,6 +135,37 @@ class PathModal(Screen):
             self._handle_autocomplete()
             event.prevent_default()
             event.stop()
+        elif event.key == "ctrl+o":
+            self._handle_yazi()
+            event.prevent_default()
+            event.stop()
+
+    def _handle_yazi(self):
+        """Lança o Yazi para selecionar um diretório."""
+        input_widget = self.query_one("#env_path", Input)
+        current_val = input_widget.value or WORKSPACE_BASE
+        
+        start_dir = current_val if os.path.isdir(current_val) else os.path.dirname(current_val)
+        if not os.path.exists(start_dir):
+            start_dir = WORKSPACE_BASE
+
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            cmd = ["yazi", start_dir, f"--chooser-file={tmp_path}"]
+            with self.app.suspend():
+                subprocess.run(cmd)
+            
+            if os.path.exists(tmp_path):
+                with open(tmp_path, "r") as f:
+                    selected = f.read().strip()
+                    if selected:
+                        input_widget.value = selected
+                        input_widget.cursor_position = len(selected)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     def _handle_autocomplete(self):
         input_widget = self.query_one("#env_path", Input)
@@ -170,7 +202,7 @@ class UpdatePathModal(Screen):
             Label("[bold]Atualizar Caminho do Projeto[/bold]"),
             Label(f"Caminho atual: {self.current_path}"),
             Input(value=self.current_path, id="new_path"),
-            Label("TAB: Completar | ENTER: Salvar | ESC: Cancelar"),
+            Label("TAB: completar | Ctrl+O: Yazi | ENTER: Salvar"),
             id="modal_container"
         )
 
@@ -184,6 +216,37 @@ class UpdatePathModal(Screen):
             self._handle_autocomplete()
             event.prevent_default()
             event.stop()
+        elif event.key == "ctrl+o":
+            self._handle_yazi()
+            event.prevent_default()
+            event.stop()
+
+    def _handle_yazi(self):
+        """Lança o Yazi para selecionar um diretório."""
+        input_widget = self.query_one("#new_path", Input)
+        current_val = input_widget.value or WORKSPACE_BASE
+        
+        start_dir = current_val if os.path.isdir(current_val) else os.path.dirname(current_val)
+        if not os.path.exists(start_dir):
+            start_dir = WORKSPACE_BASE
+
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            cmd = ["yazi", start_dir, f"--chooser-file={tmp_path}"]
+            with self.app.suspend():
+                subprocess.run(cmd)
+            
+            if os.path.exists(tmp_path):
+                with open(tmp_path, "r") as f:
+                    selected = f.read().strip()
+                    if selected:
+                        input_widget.value = selected
+                        input_widget.cursor_position = len(selected)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     def _handle_autocomplete(self):
         input_widget = self.query_one("#new_path", Input)
