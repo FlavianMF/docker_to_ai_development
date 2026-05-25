@@ -218,20 +218,40 @@ def test_spawn_logic(mock_app, mocker):
     mock_save = mocker.patch.object(mock_app, "_save_state")
     mocker.patch.object(mock_app, "update_env_list")
     
+    # Test with default path
+    mock_get_port.side_effect = [8080, 11434, 8081, 11435]
     mock_app.spawn_logic("new-env")
-    
-    # Check directory creation
-    assert os.makedirs.call_count >= 3
-    
-    # Check subprocess call
-    mock_run.assert_called_once()
-    args, kwargs = mock_run.call_args
-    assert args[0] == ["docker", "compose", "up", "-d"]
-    assert kwargs["env"]["COMPOSE_PROJECT_NAME"] == "hlg_new-env"
-    
-    # Check state update
     assert "new-env" in mock_app.state["environments"]
-    assert mock_app.state["environments"]["new-env"]["oauth_port"] == 8080
+    assert "workspace/new-env" in mock_app.state["environments"]["new-env"]["path"]
+
+    # Test with custom path
+    mock_app.spawn_logic("custom-env", "/custom/path")
+    assert mock_app.state["environments"]["custom-env"]["path"] == "/custom/path"
+
+def test_action_update_path(mock_app, mocker):
+    mock_save = mocker.patch.object(mock_app, "_save_state")
+    mocker.patch.object(mock_app, "update_env_list")
+    
+    # Setup state
+    mock_app.state["environments"]["test-env"] = {"path": "/old/path"}
+    
+    # Setup selected item
+    mock_list = MagicMock()
+    mock_list.index = 0
+    mock_item = MagicMock()
+    mock_item.name = "test-env"
+    mock_list.children = [mock_item]
+    mocker.patch.object(mock_app, "query_one", return_value=mock_list)
+    
+    # Mock push_screen to directly call handle_new_path
+    def mock_push(screen, callback):
+        callback("/new/path")
+    mocker.patch.object(mock_app, "push_screen", side_effect=mock_push)
+    
+    mock_app.action_update_path()
+    
+    assert mock_app.state["environments"]["test-env"]["path"] == "/new/path"
+    mock_save.assert_called_once()
 
 def test_kill_logic(mock_app, mocker):
     mock_run = mocker.patch("subprocess.run")

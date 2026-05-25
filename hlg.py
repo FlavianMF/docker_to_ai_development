@@ -88,9 +88,37 @@ class SpawnModal(Screen):
     """Modal para criar um novo ambiente."""
     def compose(self) -> ComposeResult:
         yield Vertical(
-            Label("Digite o nome do novo ambiente:"),
+            Label("[bold]Criar Novo Ambiente[/bold]"),
+            Label("Nome do ambiente:"),
             Input(placeholder="projeto-alpha", id="env_name"),
+            Label("Caminho do projeto (opcional):"),
+            Input(placeholder=WORKSPACE_BASE, id="env_path"),
             Label("Pressione ENTER para criar ou ESC para cancelar"),
+            id="modal_container"
+        )
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        name = self.query_one("#env_name", Input).value
+        path = self.query_one("#env_path", Input).value
+        if name:
+            self.dismiss({"name": name, "path": path or None})
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+
+class UpdatePathModal(Screen):
+    """Modal para atualizar o caminho de um ambiente existente."""
+    def __init__(self, current_path: str):
+        super().__init__()
+        self.current_path = current_path
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Label("[bold]Atualizar Caminho do Projeto[/bold]"),
+            Label(f"Caminho atual: {self.current_path}"),
+            Input(value=self.current_path, id="new_path"),
+            Label("Pressione ENTER para salvar ou ESC para cancelar"),
             id="modal_container"
         )
 
@@ -132,6 +160,7 @@ class HLGApp(App):
     BINDINGS = [
         Binding("q", "quit", "Sair", show=True),
         Binding("a", "add_env", "Spawn", show=True),
+        Binding("u", "update_path", "Update Path", show=True),
         Binding("d", "delete_env", "Kill", show=True),
         Binding("s", "stop_env", "Stop", show=True),
         Binding("e", "shell_env", "Shell", show=True),
@@ -317,10 +346,27 @@ Volumes: {usage.get('Volumes', '')}
             list_view.append(ListItem(Label(f"● {name}"), name=name))
 
     def action_add_env(self) -> None:
-        def check_name(name: str | None) -> None:
-            if name:
-                self.spawn_logic(name)
-        self.push_screen(SpawnModal(), check_name)
+        def check_result(result: dict | None) -> None:
+            if result:
+                self.spawn_logic(result["name"], result.get("path"))
+        self.push_screen(SpawnModal(), check_result)
+
+    def action_update_path(self) -> None:
+        """Abre modal para atualizar o caminho do workspace do ambiente selecionado."""
+        list_view = self.query_one("#env_list", ListView)
+        if list_view.index is not None:
+            item = list_view.children[list_view.index]
+            name = item.name
+            current_path = self.state["environments"][name]["path"]
+            
+            def handle_new_path(new_path: str | None) -> None:
+                if new_path:
+                    self.state["environments"][name]["path"] = new_path
+                    self._save_state()
+                    self.notify(f"Caminho do ambiente '{name}' atualizado.")
+                    self.update_env_list()
+            
+            self.push_screen(UpdatePathModal(current_path), handle_new_path)
 
     def action_stop_env(self) -> None:
         """Pausa o container do ambiente selecionado."""
@@ -357,8 +403,8 @@ Volumes: {usage.get('Volumes', '')}
                 with self.suspend():
                     subprocess.run(["docker", "exec", "-it", container_name, "/bin/bash"])
 
-    def spawn_logic(self, name: str):
-        project_path = os.path.join(WORKSPACE_BASE, name)
+    def spawn_logic(self, name: str, custom_path: str | None = None):
+        project_path = custom_path if custom_path else os.path.join(WORKSPACE_BASE, name)
         gemini_data = os.path.join(project_path, ".gemini_data")
         ollama_data = os.path.join(project_path, ".ollama_data")
         
