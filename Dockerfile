@@ -29,6 +29,9 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
   && apt-get install -y nodejs
 
+# Install Google Gemini CLI
+RUN npm install -g @google/gemini-cli
+
 # Install Hermes Agent
 RUN curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
 
