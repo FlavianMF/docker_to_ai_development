@@ -4,7 +4,7 @@ import subprocess
 import json
 import socket
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Static, ListItem, ListView, Label, Input
+from textual.widgets import Header, Footer, Static, ListItem, ListView, Label, Input, TabbedContent, TabPane, DataTable
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
 from textual.binding import Binding
@@ -15,6 +15,46 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WORKSPACE_BASE = os.path.join(BASE_DIR, "workspace")
 VAULT_PATH = os.getenv("OBSIDIAN_VAULT_PATH", "/mnt/c/Users/saoflfer/Documents/obsidian/flv_fit_vault")
 STATE_FILE = os.path.join(BASE_DIR, ".hlg_state.json")
+
+class ResourceManager:
+    """Gerenciador de recursos Docker (Containers e Imagens)."""
+    @staticmethod
+    def get_containers():
+        try:
+            cmd = ["docker", "ps", "-a", "--filter", "name=hlg_", "--format", "{{json .}}"]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return [json.loads(line) for line in result.stdout.splitlines() if line]
+        except:
+            return []
+
+    @staticmethod
+    def get_images():
+        try:
+            cmd = ["docker", "images", "--filter", "reference=hermes_docker*", "--format", "{{json .}}"]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            return [json.loads(line) for line in result.stdout.splitlines() if line]
+        except:
+            return []
+
+    @staticmethod
+    def get_disk_usage():
+        try:
+            cmd = ["docker", "system", "df", "--format", "{{json .}}"]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            # Retorna apenas o primeiro (resumo)
+            for line in result.stdout.splitlines():
+                if line: return json.loads(line)
+        except:
+            return {}
+
+    @staticmethod
+    def prune():
+        try:
+            subprocess.run(["docker", "container", "prune", "-f"], check=True)
+            subprocess.run(["docker", "image", "prune", "-f"], check=True)
+            return True
+        except:
+            return False
 
 class SpawnModal(Screen):
     """Modal para criar um novo ambiente."""
@@ -66,11 +106,13 @@ class HLGApp(App):
         Binding("a", "add_env", "Adicionar (Spawn)"),
         Binding("d", "delete_env", "Deletar (Kill)"),
         Binding("r", "refresh", "Atualizar"),
+        Binding("p", "prune", "Limpar (Prune)"),
     ]
 
     def __init__(self):
         super().__init__()
         self.state = self._load_state()
+        self.resource_manager = ResourceManager()
 
     def _load_state(self):
         if os.path.exists(STATE_FILE):
@@ -95,22 +137,97 @@ class HLGApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Container(
-            Vertical(
-                Label("[bold]AMBIENTES[/bold]", id="sidebar_title"),
-                ListView(id="env_list"),
-                id="sidebar"
-            ),
-            Vertical(
-                Static("Selecione um ambiente para ver detalhes", id="env_details"),
-                id="content"
-            ),
-            id="main_container"
-        )
+        with TabbedContent():
+            with TabPane("Ambientes", id="ambientes_pane"):
+                yield Container(
+                    Vertical(
+                        Label("[bold]AMBIENTES[/bold]", id="sidebar_title"),
+                        ListView(id="env_list"),
+                        id="sidebar"
+                    ),
+                    Vertical(
+                        Static("Selecione um ambiente para ver detalhes", id="env_details"),
+                        id="content"
+                    ),
+                    id="main_container"
+                )
+            with TabPane("Containers", id="containers_pane"):
+                yield DataTable(id="container_table")
+            with TabPane("Imagens", id="imagens_pane"):
+                yield DataTable(id="image_table")
+            with TabPane("Recursos", id="recursos_pane"):
+                yield Vertical(
+                    Static("Resumo de Uso de Disco", id="resource_title"),
+                    Static(id="disk_usage_details"),
+                    id="resource_container"
+                )
         yield Footer()
 
     def on_mount(self) -> None:
         self.update_env_list()
+        self.update_docker_views()
+        self.query_one("#env_list").focus()
+
+    @on(TabbedContent.TabActivated)
+    def on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        """Gerencia o foco ao trocar de abas."""
+        if event.pane.id == "ambientes_pane":
+            self.query_one("#env_list").focus()
+        elif event.pane.id == "containers_pane":
+            self.query_one("#container_table").focus()
+        elif event.pane.id == "imagens_pane":
+            self.query_one("#image_table").focus()
+
+    def update_docker_views(self):
+        # Update Container Table
+        try:
+            c_table = self.query_one("#container_table")
+            # Salvar cursor atual se possível
+            c_table.clear(columns=True)
+            c_table.add_columns("ID", "NOME", "STATUS", "PORTAS")
+            c_table.cursor_type = "row"
+            containers = self.resource_manager.get_containers()
+            for c in containers:
+                c_table.add_row(c.get("ID", ""), c.get("Names", ""), c.get("Status", ""), c.get("Ports", ""))
+        except Exception as e:
+            # Em testes, query_one pode falhar se o app não estiver rodando
+            if "PYTEST_CURRENT_TEST" not in os.environ:
+                pass
+            else:
+                raise e
+
+        # Update Image Table
+        try:
+            i_table = self.query_one("#image_table")
+            i_table.clear(columns=True)
+            i_table.add_columns("ID", "REPOSITÓRIO", "TAG", "TAMANHO")
+            i_table.cursor_type = "row"
+            images = self.resource_manager.get_images()
+            for i in images:
+                i_table.add_row(i.get("ID", ""), i.get("Repository", ""), i.get("Tag", ""), i.get("Size", ""))
+        except Exception as e:
+            if "PYTEST_CURRENT_TEST" not in os.environ:
+                pass
+            else:
+                raise e
+
+        # Update Disk Usage
+        try:
+            usage = self.resource_manager.get_disk_usage()
+            if usage:
+                details = f"""
+[bold]Tipo[/bold] | [bold]Total[/bold] | [bold]Ativos[/bold] | [bold]Tamanho[/bold] | [bold]Reclamável[/bold]
+Containers: {usage.get('Containers', '')}
+Imagens: {usage.get('Images', '')}
+Volumes: {usage.get('Volumes', '')}
+                """
+                details_widget = self.query_one("#disk_usage_details")
+                details_widget.update(details)
+        except Exception as e:
+            if "PYTEST_CURRENT_TEST" not in os.environ:
+                pass
+            else:
+                raise e
 
     def update_env_list(self):
         list_view = self.query_one("#env_list", ListView)
@@ -201,6 +318,15 @@ class HLGApp(App):
     def action_refresh(self) -> None:
         self.state = self._load_state()
         self.update_env_list()
+        self.update_docker_views()
+        self.notify("Dados atualizados!")
+
+    def action_prune(self) -> None:
+        if self.resource_manager.prune():
+            self.update_docker_views()
+            self.notify("Limpeza (Prune) concluída com sucesso!")
+        else:
+            self.notify("Falha ao executar limpeza.", severity="error")
 
 if __name__ == "__main__":
     app = HLGApp()
