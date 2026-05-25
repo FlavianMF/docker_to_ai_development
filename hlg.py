@@ -84,31 +84,51 @@ class ResourceManager:
         except:
             return False
 
-class SpawnModal(Screen):
-    """Modal para criar um novo ambiente."""
+class NameModal(Screen):
+    """Primeiro passo: Capturar o nome do ambiente."""
     def compose(self) -> ComposeResult:
         yield Vertical(
-            Label("[bold]Criar Novo Ambiente[/bold]"),
-            Label("Nome do ambiente (ex: projeto-alpha):"),
+            Label("[bold]Passo 1: Nome do Ambiente[/bold]"),
+            Label("Digite o nome (ex: projeto-alpha):"),
             Input(placeholder="projeto-alpha", id="env_name"),
-            Label("Caminho absoluto do projeto (ou deixe vazio para default):"),
-            Input(placeholder=WORKSPACE_BASE, id="env_path"),
+            Label("Pressione ENTER para continuar ou ESC para cancelar"),
+            id="modal_container"
+        )
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        name = event.value.strip()
+        if name:
+            self.dismiss(name)
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+
+class PathModal(Screen):
+    """Segundo passo: Capturar o caminho do projeto."""
+    def __init__(self, env_name: str):
+        super().__init__()
+        self.env_name = env_name
+
+    def compose(self) -> ComposeResult:
+        default_path = os.path.join(WORKSPACE_BASE, self.env_name)
+        yield Vertical(
+            Label(f"[bold]Passo 2: Caminho para '{self.env_name}'[/bold]"),
+            Label("Caminho absoluto do projeto (vazio para default):"),
+            Input(placeholder=default_path, id="env_path"),
             Label("Pressione ENTER para criar ou ESC para cancelar"),
             id="modal_container"
         )
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        name = self.query_one("#env_name", Input).value.strip()
-        path = self.query_one("#env_path", Input).value.strip()
-        if name:
-            # Se o path for relativo, expande para absoluto baseado no WORKSPACE_BASE
-            if path and not os.path.isabs(path):
-                path = os.path.abspath(os.path.join(WORKSPACE_BASE, path))
-            self.dismiss({"name": name, "path": path or None})
+        path = event.value.strip()
+        if path and not os.path.isabs(path):
+            path = os.path.abspath(os.path.join(WORKSPACE_BASE, path))
+        self.dismiss(path or None)
 
     def on_key(self, event) -> None:
         if event.key == "escape":
-            self.dismiss(None)
+            self.dismiss(False) # Indica cancelamento no segundo passo
 
 class UpdatePathModal(Screen):
     """Modal para atualizar o caminho de um ambiente existente."""
@@ -349,10 +369,14 @@ Volumes: {usage.get('Volumes', '')}
             list_view.append(ListItem(Label(f"● {name}"), name=name))
 
     def action_add_env(self) -> None:
-        def check_result(result: dict | None) -> None:
-            if result:
-                self.spawn_logic(result["name"], result.get("path"))
-        self.push_screen(SpawnModal(), check_result)
+        def get_path(name: str | None) -> None:
+            if name:
+                def finalize_spawn(path: str | None | bool) -> None:
+                    if path is not False: # False significa cancelado no segundo passo
+                        self.spawn_logic(name, path)
+                self.push_screen(PathModal(name), finalize_spawn)
+        
+        self.push_screen(NameModal(), get_path)
 
     def action_update_path(self) -> None:
         """Abre modal para atualizar o caminho do workspace do ambiente selecionado."""
