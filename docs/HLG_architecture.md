@@ -21,3 +21,9 @@ Cada ambiente é tratado como uma unidade de trabalho independente:
 
 ## 4. Integração com Gemini CLI
 O HLG servirá como uma ferramenta (Skill) para o Gemini CLI, permitindo que ele gerencie sua própria infraestrutura.
+
+## 5. Otimizações de Performance e UX (Update 2026-05-25)
+- **Image Singleton**: Todas as instâncias herdam de uma única imagem base (`hermes-agent:latest`), eliminando builds redundantes e economizando espaço em disco.
+- **Resource Monitoring**: Integração nativa com `docker stats` para visualização de CPU/MEM/NET por container.
+- **Sequential Spawn**: Fluxo de criação em dois passos (Nome -> Caminho) para maior clareza.
+- **Visual Navigation**: Integração com `Yazi` (`Ctrl+O`) e Autocomplete (`TAB`) para seleção cirúrgica de diretórios de workspace.
