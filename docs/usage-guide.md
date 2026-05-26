@@ -15,13 +15,19 @@ O comando `python3 hlg.py` lança uma interface interativa (TUI) para gerenciar 
 - `s`: **Stop** - Para o container sem remover.
 - `e`: **Shell** - Abre um terminal dentro do container (suporta TMUX).
 - `p`: **Prune** - Limpa containers e imagens órfãs.
+- `h`: **Ajuda** - Abre o guia de comandos interativo.
 
 ### Configuração de Portas
-Ao criar ou editar um ambiente, você pode definir manualmente as portas:
+Ao criar ou editar um ambiente, você pode definir as portas:
 - **Porta OAuth**: Usada para autenticação do [[Gemini CLI]]. (Padrão: 8080+)
 - **Porta Ollama**: Usada para comunicação com o modelo local. (Padrão: 11434+)
+- **Mapeamento de Portas Extras**: Permite adicionar múltiplos pares `Host:Container` para serviços customizados.
 
-Se deixadas em branco, o HLG buscará automaticamente a próxima porta disponível no host.
+#### Dicas de Navegação (Modal)
+- **Enter**: Salta para o próximo campo do formulário.
+- **TAB**: Utilizado apenas para **Autocomplete** no campo de Caminho.
+- **Ctrl+S**: Salva as alterações de qualquer lugar do modal.
+- **Ctrl+O**: Abre o seletor visual de arquivos `Yazi`.
 
 ## Persistence
 - **Workspace**: Mapped via `WORKSPACE_PATH`.

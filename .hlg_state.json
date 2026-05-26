@@ -1,3 +1,16 @@
 {
-    "environments": {}
+    "environments": {
+        "teste_validator": {
+            "path": "/home/flv/projetos_crewai/hermes_validator/workspace/",
+            "oauth_port": 8080,
+            "ollama_port": 11434,
+            "extra_ports": [
+                {
+                    "host": "8000",
+                    "container": "8000"
+                }
+            ],
+            "status": "active"
+        }
+    }
 }

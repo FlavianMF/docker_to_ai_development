@@ -5,24 +5,21 @@ O [[hermes-docker]] permite rodar múltiplas instâncias agênticas. Atualmente,
 
 ## 2. Escopo
 - **Manual Port Selection**: Permitir que o usuário digite as portas desejadas durante o spawn de um novo ambiente.
+- **Extra Ports Support**: Adição dinâmica de múltiplos mapeamentos `Host:Container`.
 - **Dynamic Updates**: Permitir a alteração das portas de um ambiente existente (requer restart do container).
-- **Port Validation**: Verificar se a porta escolhida já está em uso no host antes de aplicar.
+- **UX Optimization**: Navegação entre campos via `Enter` e salvamento via `Ctrl+S`, mantendo `TAB` para autocomplete.
 
 ## 3. Arquitetura Proposta
 
 ### 3.1 Interface do Usuário (TUI)
-- **Unified Modal**: Substituir o fluxo de múltiplos modais por um único `EnvConfigModal` contendo:
-    - Nome do Ambiente
-    - Caminho do Workspace
-    - Porta OAuth (Padrão: Auto-selecionada)
-    - Porta Ollama (Padrão: Auto-selecionada)
+- **Unified Modal**: Substituir o fluxo de múltiplos modais por um único `EnvConfigModal` com seção de portas rolável.
 
-### 3.2 Lógica de Negócio (`HLGApp`)
-- `spawn_logic`: Receberá os valores do modal. Se os campos de porta estiverem vazios, manterá a lógica de `_get_free_port`.
-- `update_logic`: Nova ação para reconfigurar um ambiente existente, atualizando o arquivo `.hlg_state.json` e reiniciando os containers com as novas variáveis de ambiente.
+### 3.2 Orquestração (`ResourceManager` & `spawn_logic`)
+- **Docker Override**: Uso de arquivos `docker-compose.override.yml` por instância para injetar portas extras sem modificar a base.
+- **Port Discovery**: Fallback automático para portas livres se os campos forem deixados em branco.
 
 ### 3.3 Persistência
-- O arquivo [[.hlg_state.json]] já armazena `oauth_port` e `ollama_port`. Nenhuma mudança de schema estrutural é necessária, apenas a exposição para edição.
+- O arquivo [[.hlg_state.json]] armazena `oauth_port`, `ollama_port` e a lista `extra_ports`.
 
 ## 4. Estratégia de Verificação
 
