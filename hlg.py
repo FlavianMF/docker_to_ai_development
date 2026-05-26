@@ -157,7 +157,7 @@ class EnvConfigModal(Screen):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Navegação via ENTER: move foco para o próximo widget."""
-        self.app.focus_next()
+        self.focus_next()
 
     def _submit(self):
         name = self.query_one("#env_name", Input).value.strip()
