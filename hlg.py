@@ -7,7 +7,7 @@ import glob
 import tempfile
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Static, ListItem, ListView, Label, Input, TabbedContent, TabPane, DataTable, Button
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
 from textual.screen import Screen
 from textual.binding import Binding
 from textual import on
@@ -87,64 +87,110 @@ class ResourceManager:
             return False
 
 class EnvConfigModal(Screen):
-    """Modal unificado para configuração de ambiente (Nome, Path, Portas)."""
-    def __init__(self, name="", path="", oauth_port="", ollama_port="", is_update=False):
+    """Modal unificado para configuração de ambiente (Nome, Path, Portas Dinâmicas)."""
+    def __init__(self, name="", path="", oauth_port="", ollama_port="", extra_ports=None, is_update=False):
         super().__init__()
         self.env_name = name
         self.env_path = path if path else (os.path.join(WORKSPACE_BASE, name) if name else WORKSPACE_BASE)
         self.oauth_port = str(oauth_port) if oauth_port else ""
         self.ollama_port = str(ollama_port) if ollama_port else ""
+        self.extra_ports = extra_ports if extra_ports else []
         self.is_update = is_update
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Label(f"[bold]{'Configurar' if self.is_update else 'Novo'} Ambiente[/bold]"),
-            Label("Nome:"),
-            Input(value=self.env_name, placeholder="projeto-alpha", id="env_name", disabled=self.is_update),
-            Label("Caminho (TAB: completar | Ctrl+O: Yazi):"),
-            Input(value=self.env_path, placeholder="Caminho do projeto", id="env_path"),
-            Horizontal(
-                Vertical(
-                    Label("Porta OAuth:"),
-                    Input(value=self.oauth_port, placeholder="Auto (8080+)", id="oauth_port"),
-                ),
-                Vertical(
-                    Label("Porta Ollama:"),
-                    Input(value=self.ollama_port, placeholder="Auto (11434+)", id="ollama_port"),
-                ),
-                id="port_container"
-            ),
-            Horizontal(
-                Button("Cancelar", variant="error", id="cancel"),
-                Button("Salvar", variant="primary", id="save"),
-                id="button_container"
-            ),
-            id="modal_container"
+        with Vertical(id="modal_container"):
+            yield Label(f"[bold]{'Configurar' if self.is_update else 'Novo'} Ambiente[/bold]", id="modal_title")
+            
+            yield Label("Nome:", classes="field_label")
+            yield Input(value=self.env_name, placeholder="projeto-alpha", id="env_name", disabled=self.is_update)
+            
+            yield Label("Caminho:", classes="field_label")
+            yield Input(value=self.env_path, placeholder="Caminho do projeto", id="env_path")
+            yield Label("[dim]TAB: Autocomplete | Ctrl+O: Yazi | Enter: Próximo[/dim]", classes="help_text")
+            
+            with Horizontal(id="port_container"):
+                with Vertical():
+                    yield Label("Porta OAuth:", classes="field_label")
+                    yield Input(value=self.oauth_port, placeholder="Auto (8080+)", id="oauth_port")
+                with Vertical():
+                    yield Label("Porta Ollama:", classes="field_label")
+                    yield Input(value=self.ollama_port, placeholder="Auto (11434+)", id="ollama_port")
+            yield Label("[dim]Deixe em branco para auto-seleção[/dim]", classes="help_text")
+
+            yield Label("[bold]Mapeamento de Portas Extras (Host:Container)[/bold]", id="extra_ports_title")
+            with ScrollableContainer(id="extra_ports_list"):
+                for i, port in enumerate(self.extra_ports):
+                    yield self._create_port_row(i, port.get("host"), port.get("container"))
+            
+            yield Button("＋ Adicionar Porta", id="add_port", variant="default")
+
+            yield Label("[dim]Enter: Navegar | Ctrl+S: Salvar | ESC: Cancelar[/dim]", id="global_help")
+            
+            with Horizontal(id="button_container"):
+                yield Button("Cancelar", variant="error", id="cancel")
+                yield Button("Salvar", variant="primary", id="save")
+
+    def _create_port_row(self, index, host="", container=""):
+        row_id = f"port_row_{index}"
+        return Horizontal(
+            Input(value=str(host), placeholder="Host", classes="port_input host_port"),
+            Label(":"),
+            Input(value=str(container), placeholder="Cont.", classes="port_input container_port"),
+            Button("🗑", classes="remove_port", variant="error"),
+            id=row_id,
+            classes="extra_port_row"
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel":
             self.dismiss(None)
-        else:
-            name = self.query_one("#env_name", Input).value.strip()
-            path = self.query_one("#env_path", Input).value.strip()
-            oauth = self.query_one("#oauth_port", Input).value.strip()
-            ollama = self.query_one("#ollama_port", Input).value.strip()
-            
-            if not name:
-                self.app.notify("Nome é obrigatório", severity="error")
-                return
-            
-            self.dismiss({
-                "name": name,
-                "path": path,
-                "oauth_port": oauth,
-                "ollama_port": ollama
-            })
+        elif event.button.id == "save":
+            self._submit()
+        elif event.button.id == "add_port":
+            container = self.query_one("#extra_ports_list")
+            new_index = len(container.children)
+            container.mount(self._create_port_row(new_index))
+            # Foca no novo input de host
+            container.children[-1].query_one(".host_port").focus()
+        elif "remove_port" in event.button.classes:
+            event.button.parent.remove()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Navegação via ENTER: move foco para o próximo widget."""
+        self.app.focus_next()
+
+    def _submit(self):
+        name = self.query_one("#env_name", Input).value.strip()
+        path = self.query_one("#env_path", Input).value.strip()
+        oauth = self.query_one("#oauth_port", Input).value.strip()
+        ollama = self.query_one("#ollama_port", Input).value.strip()
+        
+        extra_ports = []
+        for row in self.query(".extra_port_row"):
+            h = row.query_one(".host_port", Input).value.strip()
+            c = row.query_one(".container_port", Input).value.strip()
+            if h and c:
+                extra_ports.append({"host": h, "container": c})
+        
+        if not name:
+            self.app.notify("Nome é obrigatório", severity="error")
+            return
+        
+        self.dismiss({
+            "name": name,
+            "path": path,
+            "oauth_port": oauth,
+            "ollama_port": ollama,
+            "extra_ports": extra_ports
+        })
 
     def on_key(self, event) -> None:
         if event.key == "escape":
             self.dismiss(None)
+        elif event.key == "ctrl+s":
+            self._submit()
+            event.prevent_default()
+            event.stop()
         elif event.key == "tab":
             if self.focused and self.focused.id == "env_path":
                 self._handle_autocomplete()
@@ -225,29 +271,70 @@ class HLGApp(App):
         padding: 1;
     }
     #modal_container {
-        width: 60;
+        width: 65;
         height: auto;
         border: thick $primary;
         background: $surface;
-        align: center middle;
         padding: 1;
+    }
+    #modal_title {
+        text-align: center;
+        margin-bottom: 1;
+    }
+    .field_label {
+        margin-top: 1;
+        bold: true;
+    }
+    .help_text {
+        color: $text-disabled;
+        font-style: italic;
+        margin-bottom: 1;
     }
     #port_container {
         height: 5;
         margin-top: 1;
-        margin-bottom: 1;
     }
     #port_container Vertical {
         width: 50%;
         padding: 0 1;
     }
+    #extra_ports_title {
+        margin-top: 2;
+        border-bottom: thin $primary;
+    }
+    #extra_ports_list {
+        height: 8;
+        border: sunken $panel;
+        margin-top: 1;
+        padding: 1;
+    }
+    .extra_port_row {
+        height: 3;
+        margin-bottom: 1;
+    }
+    .port_input {
+        width: 35%;
+    }
+    .remove_port {
+        width: 10%;
+        margin-left: 1;
+    }
+    #add_port {
+        margin-top: 1;
+        width: 100%;
+    }
+    #global_help {
+        text-align: center;
+        margin-top: 1;
+        color: $accent;
+    }
     #button_container {
         height: 3;
         align: center middle;
-        margin-top: 1;
+        margin-top: 2;
     }
     #button_container Button {
-        margin: 0 1;
+        margin: 0 2;
     }
     """
 
@@ -262,7 +349,48 @@ class HLGApp(App):
         Binding("p", "prune", "Prune", show=True),
         Binding("v", "toggle_view", "Alternar Tudo/HLG", show=True),
         Binding("tab", "switch_focus", "Tab: Entrar/Sair", show=True),
+        Binding("h", "help", "Ajuda", show=True),
     ]
+
+    def action_help(self) -> None:
+        """Exibe modal com instruções de uso."""
+        help_text = """
+    [bold cyan]COMANDOS DO HLG[/bold cyan]
+
+    [bold yellow]Navegação Geral:[/bold yellow]
+    - [bold]TAB[/bold]: Alterna foco entre Menu e Conteúdo
+    - [bold]v[/bold]: Alterna visualização de recursos (Apenas HLG ou Sistema Todo)
+    - [bold]r[/bold]: Atualiza dados da tela
+
+    [bold yellow]Gerenciamento de Ambientes:[/bold yellow]
+    - [bold]a[/bold]: [Spawn] Cria novo ambiente de agente
+    - [bold]u[/bold]: [Config] Edita ambiente (Caminho, Portas, Portas Extras)
+    - [bold]d[/bold]: [Kill] Remove ambiente e apaga containers
+    - [bold]s[/bold]: [Stop] Para os containers do ambiente
+    - [bold]e[/bold]: [Shell] Entra no terminal do container (Bash)
+
+    [bold yellow]Configuração (Modal):[/bold yellow]
+    - [bold]Enter[/bold]: Pula para o próximo campo
+    - [bold]TAB[/bold]: Autocomplete de caminhos (no campo Caminho)
+    - [bold]Ctrl+O[/bold]: Abre seletor de pastas Yazi (no campo Caminho)
+    - [bold]Ctrl+S[/bold]: Salva as configurações
+    - [bold]ESC[/bold]: Cancela e fecha o modal
+
+    [bold yellow]Limpeza:[/bold yellow]
+    - [bold]p[/bold]: [Prune] Remove containers e imagens órfãs do sistema
+        """
+        self.push_screen(Screen(id="help_screen"), lambda _: None)
+        self.query_one("#help_screen").mount(
+            Vertical(
+                Static(help_text),
+                Button("Fechar", variant="primary", id="close_help"),
+                id="modal_container"
+            )
+        )
+
+    @on(Button.Pressed, "#close_help")
+    def on_close_help(self) -> None:
+        self.pop_screen()
 
     def __init__(self):
         super().__init__()
@@ -446,7 +574,8 @@ Volumes: {usage.get('Volumes', '')}
                     config["name"], 
                     config["path"], 
                     config["oauth_port"], 
-                    config["ollama_port"]
+                    config["ollama_port"],
+                    config["extra_ports"]
                 )
         self.push_screen(EnvConfigModal(), handle_config)
 
@@ -464,7 +593,8 @@ Volumes: {usage.get('Volumes', '')}
                         name, 
                         config["path"], 
                         config["oauth_port"], 
-                        config["ollama_port"]
+                        config["ollama_port"],
+                        config["extra_ports"]
                     )
             
             self.push_screen(
@@ -473,6 +603,7 @@ Volumes: {usage.get('Volumes', '')}
                     path=env["path"], 
                     oauth_port=env["oauth_port"], 
                     ollama_port=env["ollama_port"],
+                    extra_ports=env.get("extra_ports", []),
                     is_update=True
                 ), 
                 handle_config
@@ -513,10 +644,11 @@ Volumes: {usage.get('Volumes', '')}
                 with self.suspend():
                     subprocess.run(["docker", "exec", "-it", container_name, "/bin/bash"])
 
-    def spawn_logic(self, name: str, custom_path: str | None = None, oauth_port: str = "", ollama_port: str = ""):
+    def spawn_logic(self, name: str, custom_path: str | None = None, oauth_port: str = "", ollama_port: str = "", extra_ports: list = None):
         project_path = custom_path if custom_path else os.path.join(WORKSPACE_BASE, name)
         gemini_data = os.path.join(project_path, ".gemini_data")
         ollama_data = os.path.join(project_path, ".ollama_data")
+        extra_ports = extra_ports if extra_ports else []
         
         for p in [project_path, gemini_data, ollama_data]:
             os.makedirs(p, exist_ok=True)
@@ -528,6 +660,13 @@ Volumes: {usage.get('Volumes', '')}
         except ValueError:
             self.notify("Portas devem ser números válidos", severity="error")
             return
+
+        # Gera docker-compose.override.yml com portas extras
+        override_file = os.path.join(project_path, "docker-compose.override.yml")
+        with open(override_file, "w") as f:
+            f.write("services:\n  hermes:\n    ports:\n")
+            for p in extra_ports:
+                f.write(f"      - \"{p['host']}:{p['container']}\"\n")
 
         env_vars = {
             **os.environ,
@@ -543,11 +682,18 @@ Volumes: {usage.get('Volumes', '')}
         }
 
         try:
-            subprocess.run(["docker", "compose", "up", "-d"], env=env_vars, check=True, cwd=BASE_DIR)
+            cmd = [
+                "docker", "compose", 
+                "-f", os.path.join(BASE_DIR, "docker-compose.yml"),
+                "-f", override_file,
+                "up", "-d"
+            ]
+            subprocess.run(cmd, env=env_vars, check=True, cwd=BASE_DIR)
             self.state["environments"][name] = {
                 "path": project_path,
                 "oauth_port": o_port,
                 "ollama_port": l_port,
+                "extra_ports": extra_ports,
                 "status": "active"
             }
             self._save_state()
@@ -564,9 +710,18 @@ Volumes: {usage.get('Volumes', '')}
             self.kill_logic(name)
 
     def kill_logic(self, name: str):
+        env = self.state["environments"].get(name, {})
+        project_path = env.get("path", BASE_DIR)
+        override_file = os.path.join(project_path, "docker-compose.override.yml")
+        
         env_vars = {**os.environ, "COMPOSE_PROJECT_NAME": f"hlg_{name}"}
         try:
-            subprocess.run(["docker", "compose", "down"], env=env_vars, cwd=BASE_DIR)
+            cmd = ["docker", "compose", "-f", os.path.join(BASE_DIR, "docker-compose.yml")]
+            if os.path.exists(override_file):
+                cmd += ["-f", override_file]
+            cmd += ["down"]
+            
+            subprocess.run(cmd, env=env_vars, cwd=BASE_DIR)
             del self.state["environments"][name]
             self._save_state()
             self.update_env_list()
