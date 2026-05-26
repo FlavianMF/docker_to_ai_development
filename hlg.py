@@ -283,11 +283,11 @@ class HLGApp(App):
     }
     .field_label {
         margin-top: 1;
-        bold: true;
+        text-style: bold;
     }
     .help_text {
         color: $text-disabled;
-        font-style: italic;
+        text-style: italic;
         margin-bottom: 1;
     }
     #port_container {
@@ -300,11 +300,11 @@ class HLGApp(App):
     }
     #extra_ports_title {
         margin-top: 2;
-        border-bottom: thin $primary;
+        border-bottom: solid $primary;
     }
     #extra_ports_list {
         height: 8;
-        border: sunken $panel;
+        border: solid $panel;
         margin-top: 1;
         padding: 1;
     }
