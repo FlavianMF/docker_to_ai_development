@@ -733,16 +733,26 @@ Volumes: {usage.get('Volumes', '')}
         if event.item:
             name = event.item.name
             data = self.state["environments"][name]
+            
+            # Formata portas extras
+            extra_ports_list = data.get("extra_ports", [])
+            extra_ports_str = ""
+            if extra_ports_list:
+                extra_ports_str = "\n[bold blue]Portas Extras:[/bold blue]"
+                for p in extra_ports_list:
+                    extra_ports_str += f"\n  - {p['host']} -> {p['container']}"
+
             details = f"""
 [bold cyan]Ambiente:[/bold cyan] {name}
 [bold green]Status:[/bold green] RUNNING
 [bold blue]OAuth Port:[/bold blue] {data['oauth_port']}
-[bold blue]Ollama Port:[/bold blue] {data['ollama_port']}
+[bold blue]Ollama Port:[/bold blue] {data['ollama_port']}{extra_ports_str}
 [bold gray]Workspace:[/bold gray] {data['path']}
 
 [yellow]Atalhos:[/yellow]
 'd' - Encerrar este ambiente
 'a' - Criar novo ambiente
+'u' - Configurar (Portas/Path)
 'q' - Sair
             """
             self.query_one("#env_details", Static).update(details)
