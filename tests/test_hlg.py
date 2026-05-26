@@ -218,22 +218,28 @@ def test_spawn_logic(mock_app, mocker):
     mock_save = mocker.patch.object(mock_app, "_save_state")
     mocker.patch.object(mock_app, "update_env_list")
     
-    # Test with default path
+    # Test with default ports
     mock_get_port.side_effect = [8080, 11434, 8081, 11435]
     mock_app.spawn_logic("new-env")
     assert "new-env" in mock_app.state["environments"]
-    assert "workspace/new-env" in mock_app.state["environments"]["new-env"]["path"]
+    assert mock_app.state["environments"]["new-env"]["oauth_port"] == 8080
 
-    # Test with custom path
-    mock_app.spawn_logic("custom-env", "/custom/path")
-    assert mock_app.state["environments"]["custom-env"]["path"] == "/custom/path"
+    # Test with custom ports
+    mock_app.spawn_logic("custom-env", "/custom/path", "9000", "12000")
+    assert mock_app.state["environments"]["custom-env"]["oauth_port"] == 9000
+    assert mock_app.state["environments"]["custom-env"]["ollama_port"] == 12000
 
-def test_action_update_path(mock_app, mocker):
+def test_action_edit_env(mock_app, mocker):
     mock_save = mocker.patch.object(mock_app, "_save_state")
     mocker.patch.object(mock_app, "update_env_list")
+    mocker.patch.object(mock_app, "spawn_logic")
     
     # Setup state
-    mock_app.state["environments"]["test-env"] = {"path": "/old/path"}
+    mock_app.state["environments"]["test-env"] = {
+        "path": "/old/path",
+        "oauth_port": 8080,
+        "ollama_port": 11434
+    }
     
     # Setup selected item
     mock_list = MagicMock()
@@ -243,15 +249,19 @@ def test_action_update_path(mock_app, mocker):
     mock_list.children = [mock_item]
     mocker.patch.object(mock_app, "query_one", return_value=mock_list)
     
-    # Mock push_screen to directly call handle_new_path
+    # Mock push_screen to directly call handle_config
     def mock_push(screen, callback):
-        callback("/new/path")
+        callback({
+            "name": "test-env",
+            "path": "/new/path",
+            "oauth_port": "9999",
+            "ollama_port": "11111"
+        })
     mocker.patch.object(mock_app, "push_screen", side_effect=mock_push)
     
-    mock_app.action_update_path()
+    mock_app.action_edit_env()
     
-    assert mock_app.state["environments"]["test-env"]["path"] == "/new/path"
-    mock_save.assert_called_once()
+    mock_app.spawn_logic.assert_called_with("test-env", "/new/path", "9999", "11111")
 
 def test_kill_logic(mock_app, mocker):
     mock_run = mocker.patch("subprocess.run")

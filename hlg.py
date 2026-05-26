@@ -6,7 +6,7 @@ import socket
 import glob
 import tempfile
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Static, ListItem, ListView, Label, Input, TabbedContent, TabPane, DataTable
+from textual.widgets import Header, Footer, Static, ListItem, ListView, Label, Input, TabbedContent, TabPane, DataTable, Button
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
 from textual.binding import Binding
@@ -86,144 +86,79 @@ class ResourceManager:
         except:
             return False
 
-class NameModal(Screen):
-    """Primeiro passo: Capturar o nome do ambiente."""
-    def compose(self) -> ComposeResult:
-        yield Vertical(
-            Label("[bold]Passo 1: Nome do Ambiente[/bold]"),
-            Label("Digite o nome (ex: projeto-alpha):"),
-            Input(placeholder="projeto-alpha", id="env_name"),
-            Label("Pressione ENTER para continuar ou ESC para cancelar"),
-            id="modal_container"
-        )
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        name = event.value.strip()
-        if name:
-            self.dismiss(name)
-
-    def on_key(self, event) -> None:
-        if event.key == "escape":
-            self.dismiss(None)
-
-class PathModal(Screen):
-    """Segundo passo: Capturar o caminho do projeto."""
-    def __init__(self, env_name: str):
+class EnvConfigModal(Screen):
+    """Modal unificado para configuração de ambiente (Nome, Path, Portas)."""
+    def __init__(self, name="", path="", oauth_port="", ollama_port="", is_update=False):
         super().__init__()
-        self.env_name = env_name
+        self.env_name = name
+        self.env_path = path if path else (os.path.join(WORKSPACE_BASE, name) if name else WORKSPACE_BASE)
+        self.oauth_port = str(oauth_port) if oauth_port else ""
+        self.ollama_port = str(ollama_port) if ollama_port else ""
+        self.is_update = is_update
 
     def compose(self) -> ComposeResult:
-        default_path = os.path.join(WORKSPACE_BASE, self.env_name)
         yield Vertical(
-            Label(f"[bold]Passo 2: Caminho para '{self.env_name}'[/bold]"),
-            Label("Caminho do projeto (TAB: completar | Ctrl+O: Yazi):"),
-            Input(placeholder=default_path, id="env_path"),
-            Label("ENTER: Criar | ESC: Cancelar"),
+            Label(f"[bold]{'Configurar' if self.is_update else 'Novo'} Ambiente[/bold]"),
+            Label("Nome:"),
+            Input(value=self.env_name, placeholder="projeto-alpha", id="env_name", disabled=self.is_update),
+            Label("Caminho (TAB: completar | Ctrl+O: Yazi):"),
+            Input(value=self.env_path, placeholder="Caminho do projeto", id="env_path"),
+            Horizontal(
+                Vertical(
+                    Label("Porta OAuth:"),
+                    Input(value=self.oauth_port, placeholder="Auto (8080+)", id="oauth_port"),
+                ),
+                Vertical(
+                    Label("Porta Ollama:"),
+                    Input(value=self.ollama_port, placeholder="Auto (11434+)", id="ollama_port"),
+                ),
+                id="port_container"
+            ),
+            Horizontal(
+                Button("Cancelar", variant="error", id="cancel"),
+                Button("Salvar", variant="primary", id="save"),
+                id="button_container"
+            ),
             id="modal_container"
         )
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        path = event.value.strip()
-        if path and not os.path.isabs(path):
-            path = os.path.abspath(os.path.join(WORKSPACE_BASE, path))
-        self.dismiss(path or None)
-
-    def on_key(self, event) -> None:
-        if event.key == "escape":
-            self.dismiss(False)
-        elif event.key == "tab":
-            self._handle_autocomplete()
-            event.prevent_default()
-            event.stop()
-        elif event.key == "ctrl+o":
-            self._handle_yazi()
-            event.prevent_default()
-            event.stop()
-
-    def _handle_yazi(self):
-        """Lança o Yazi para selecionar um diretório."""
-        input_widget = self.query_one("#env_path", Input)
-        current_val = input_widget.value or WORKSPACE_BASE
-        
-        start_dir = current_val if os.path.isdir(current_val) else os.path.dirname(current_val)
-        if not os.path.exists(start_dir):
-            start_dir = WORKSPACE_BASE
-
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            tmp_path = tmp.name
-
-        try:
-            cmd = ["yazi", start_dir, f"--chooser-file={tmp_path}"]
-            with self.app.suspend():
-                subprocess.run(cmd)
-            
-            if os.path.exists(tmp_path):
-                with open(tmp_path, "r") as f:
-                    selected = f.read().strip()
-                    if selected:
-                        input_widget.value = selected
-                        input_widget.cursor_position = len(selected)
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-
-    def _handle_autocomplete(self):
-        input_widget = self.query_one("#env_path", Input)
-        current = input_widget.value
-        if not current:
-            return
-        
-        path = os.path.expanduser(current)
-        matches = glob.glob(path + "*")
-        
-        if not matches:
-            return
-            
-        if len(matches) == 1:
-            match = matches[0]
-            if os.path.isdir(match) and not match.endswith("/"):
-                match += "/"
-            input_widget.value = match
-            input_widget.cursor_position = len(match)
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel":
+            self.dismiss(None)
         else:
-            common = os.path.commonprefix(matches)
-            if common:
-                input_widget.value = common
-                input_widget.cursor_position = len(common)
-
-class UpdatePathModal(Screen):
-    """Modal para atualizar o caminho de um ambiente existente."""
-    def __init__(self, current_path: str):
-        super().__init__()
-        self.current_path = current_path
-
-    def compose(self) -> ComposeResult:
-        yield Vertical(
-            Label("[bold]Atualizar Caminho do Projeto[/bold]"),
-            Label(f"Caminho atual: {self.current_path}"),
-            Input(value=self.current_path, id="new_path"),
-            Label("TAB: completar | Ctrl+O: Yazi | ENTER: Salvar"),
-            id="modal_container"
-        )
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        self.dismiss(event.value)
+            name = self.query_one("#env_name", Input).value.strip()
+            path = self.query_one("#env_path", Input).value.strip()
+            oauth = self.query_one("#oauth_port", Input).value.strip()
+            ollama = self.query_one("#ollama_port", Input).value.strip()
+            
+            if not name:
+                self.app.notify("Nome é obrigatório", severity="error")
+                return
+            
+            self.dismiss({
+                "name": name,
+                "path": path,
+                "oauth_port": oauth,
+                "ollama_port": ollama
+            })
 
     def on_key(self, event) -> None:
         if event.key == "escape":
             self.dismiss(None)
         elif event.key == "tab":
-            self._handle_autocomplete()
-            event.prevent_default()
-            event.stop()
+            if self.focused and self.focused.id == "env_path":
+                self._handle_autocomplete()
+                event.prevent_default()
+                event.stop()
         elif event.key == "ctrl+o":
-            self._handle_yazi()
-            event.prevent_default()
-            event.stop()
+            if self.focused and self.focused.id == "env_path":
+                self._handle_yazi()
+                event.prevent_default()
+                event.stop()
 
     def _handle_yazi(self):
         """Lança o Yazi para selecionar um diretório."""
-        input_widget = self.query_one("#new_path", Input)
+        input_widget = self.query_one("#env_path", Input)
         current_val = input_widget.value or WORKSPACE_BASE
         
         start_dir = current_val if os.path.isdir(current_val) else os.path.dirname(current_val)
@@ -249,7 +184,7 @@ class UpdatePathModal(Screen):
                 os.remove(tmp_path)
 
     def _handle_autocomplete(self):
-        input_widget = self.query_one("#new_path", Input)
+        input_widget = self.query_one("#env_path", Input)
         current = input_widget.value
         if not current:
             return
@@ -290,20 +225,36 @@ class HLGApp(App):
         padding: 1;
     }
     #modal_container {
-        width: 40;
-        height: 10;
+        width: 60;
+        height: auto;
         border: thick $primary;
         background: $surface;
         align: center middle;
         padding: 1;
-        content-align: center middle;
+    }
+    #port_container {
+        height: 5;
+        margin-top: 1;
+        margin-bottom: 1;
+    }
+    #port_container Vertical {
+        width: 50%;
+        padding: 0 1;
+    }
+    #button_container {
+        height: 3;
+        align: center middle;
+        margin-top: 1;
+    }
+    #button_container Button {
+        margin: 0 1;
     }
     """
 
     BINDINGS = [
         Binding("q", "quit", "Sair", show=True),
         Binding("a", "add_env", "Spawn", show=True),
-        Binding("u", "update_path", "Update Path", show=True),
+        Binding("u", "edit_env", "Config", show=True),
         Binding("d", "delete_env", "Kill", show=True),
         Binding("s", "stop_env", "Stop", show=True),
         Binding("e", "shell_env", "Shell", show=True),
@@ -489,31 +440,43 @@ Volumes: {usage.get('Volumes', '')}
             list_view.append(ListItem(Label(f"● {name}"), name=name))
 
     def action_add_env(self) -> None:
-        def get_path(name: str | None) -> None:
-            if name:
-                def finalize_spawn(path: str | None | bool) -> None:
-                    if path is not False: # False significa cancelado no segundo passo
-                        self.spawn_logic(name, path)
-                self.push_screen(PathModal(name), finalize_spawn)
-        
-        self.push_screen(NameModal(), get_path)
+        def handle_config(config: dict | None) -> None:
+            if config:
+                self.spawn_logic(
+                    config["name"], 
+                    config["path"], 
+                    config["oauth_port"], 
+                    config["ollama_port"]
+                )
+        self.push_screen(EnvConfigModal(), handle_config)
 
-    def action_update_path(self) -> None:
-        """Abre modal para atualizar o caminho do workspace do ambiente selecionado."""
+    def action_edit_env(self) -> None:
+        """Abre modal para atualizar a configuração de um ambiente existente."""
         list_view = self.query_one("#env_list", ListView)
         if list_view.index is not None:
             item = list_view.children[list_view.index]
             name = item.name
-            current_path = self.state["environments"][name]["path"]
+            env = self.state["environments"][name]
             
-            def handle_new_path(new_path: str | None) -> None:
-                if new_path:
-                    self.state["environments"][name]["path"] = new_path
-                    self._save_state()
-                    self.notify(f"Caminho do ambiente '{name}' atualizado.")
-                    self.update_env_list()
+            def handle_config(config: dict | None) -> None:
+                if config:
+                    self.spawn_logic(
+                        name, 
+                        config["path"], 
+                        config["oauth_port"], 
+                        config["ollama_port"]
+                    )
             
-            self.push_screen(UpdatePathModal(current_path), handle_new_path)
+            self.push_screen(
+                EnvConfigModal(
+                    name=name, 
+                    path=env["path"], 
+                    oauth_port=env["oauth_port"], 
+                    ollama_port=env["ollama_port"],
+                    is_update=True
+                ), 
+                handle_config
+            )
 
     def action_stop_env(self) -> None:
         """Pausa o container do ambiente selecionado."""
@@ -550,7 +513,7 @@ Volumes: {usage.get('Volumes', '')}
                 with self.suspend():
                     subprocess.run(["docker", "exec", "-it", container_name, "/bin/bash"])
 
-    def spawn_logic(self, name: str, custom_path: str | None = None):
+    def spawn_logic(self, name: str, custom_path: str | None = None, oauth_port: str = "", ollama_port: str = ""):
         project_path = custom_path if custom_path else os.path.join(WORKSPACE_BASE, name)
         gemini_data = os.path.join(project_path, ".gemini_data")
         ollama_data = os.path.join(project_path, ".ollama_data")
@@ -558,8 +521,13 @@ Volumes: {usage.get('Volumes', '')}
         for p in [project_path, gemini_data, ollama_data]:
             os.makedirs(p, exist_ok=True)
 
-        oauth_port = self._get_free_port(8080)
-        ollama_port = self._get_free_port(11434)
+        # Lógica de Portas: Manual ou Auto-discovery
+        try:
+            o_port = int(oauth_port) if oauth_port else self._get_free_port(8080)
+            l_port = int(ollama_port) if ollama_port else self._get_free_port(11434)
+        except ValueError:
+            self.notify("Portas devem ser números válidos", severity="error")
+            return
 
         env_vars = {
             **os.environ,
@@ -569,8 +537,8 @@ Volumes: {usage.get('Volumes', '')}
             "WORKSPACE_PATH": project_path,
             "GEMINI_DATA_PATH": gemini_data,
             "OLLAMA_DATA_VOLUME": ollama_data,
-            "OAUTH_PORT": str(oauth_port),
-            "OLLAMA_PORT": str(ollama_port),
+            "OAUTH_PORT": str(o_port),
+            "OLLAMA_PORT": str(l_port),
             "OBSIDIAN_VAULT_PATH": VAULT_PATH
         }
 
@@ -578,13 +546,13 @@ Volumes: {usage.get('Volumes', '')}
             subprocess.run(["docker", "compose", "up", "-d"], env=env_vars, check=True, cwd=BASE_DIR)
             self.state["environments"][name] = {
                 "path": project_path,
-                "oauth_port": oauth_port,
-                "ollama_port": ollama_port,
+                "oauth_port": o_port,
+                "ollama_port": l_port,
                 "status": "active"
             }
             self._save_state()
             self.update_env_list()
-            self.notify(f"Ambiente '{name}' criado em: {project_path}")
+            self.notify(f"Ambiente '{name}' configurado (OAuth: {o_port}).")
         except Exception as e:
             self.notify(f"Erro: {e}", severity="error")
 

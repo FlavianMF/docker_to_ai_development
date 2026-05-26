@@ -13,3 +13,4 @@
 - [[oauth-setup|Google OAuth & Remote Access]]
 - [[usage-guide|Usage Guide & Multi-Instance Support]]
 - [[resource-management-design|Design: Container & Resource Management]]
+- [[dynamic-port-config-design|Design: Dynamic Port Configuration]]

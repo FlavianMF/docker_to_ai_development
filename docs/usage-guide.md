@@ -5,25 +5,23 @@ Both tools are pre-installed.
 - **Hermes**: `hermes`
 - **Gemini CLI**: `gemini`
 
-## Multi-Instance Support
-To work on multiple projects simultaneously without interference:
+## HLG TUI (Hermes-Lazy-Gate)
+O comando `python3 hlg.py` lança uma interface interativa (TUI) para gerenciar instâncias.
 
-### Using Project Names
-Run Docker Compose with a unique project name, container name, and workspace path:
+### Atalhos Principais
+- `a`: **Spawn** - Cria um novo ambiente.
+- `u`: **Config** - Atualiza o caminho ou as portas de um ambiente existente.
+- `d`: **Kill** - Remove o ambiente e os containers associados.
+- `s`: **Stop** - Para o container sem remover.
+- `e`: **Shell** - Abre um terminal dentro do container (suporta TMUX).
+- `p`: **Prune** - Limpa containers e imagens órfãs.
 
-```bash
-COMPOSE_PROJECT_NAME=my-project \
-HERMES_CONTAINER_NAME=hermes-my-project \
-WORKSPACE_PATH=./path/to/project \
-OAUTH_PORT=8081 \
-docker compose up -d
-```
+### Configuração de Portas
+Ao criar ou editar um ambiente, você pode definir manualmente as portas:
+- **Porta OAuth**: Usada para autenticação do [[Gemini CLI]]. (Padrão: 8080+)
+- **Porta Ollama**: Usada para comunicação com o modelo local. (Padrão: 11434+)
 
-### Key Variables
-- `COMPOSE_PROJECT_NAME`: Isolates the Docker stack.
-- `HERMES_CONTAINER_NAME`: Ensures unique container identity.
-- `WORKSPACE_PATH`: Maps specific project files.
-- `OAUTH_PORT`: Prevents port collisions for OAuth callbacks.
+Se deixadas em branco, o HLG buscará automaticamente a próxima porta disponível no host.
 
 ## Persistence
 - **Workspace**: Mapped via `WORKSPACE_PATH`.

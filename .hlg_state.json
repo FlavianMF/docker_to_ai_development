@@ -1,7 +1,7 @@
 {
     "environments": {
-        "teste": {
-            "path": "/home/flv/projetos_web/birthday_counter/",
+        "teste_validadtor": {
+            "path": "/home/flv/projetos_crewai/hermes_validator/workspace",
             "oauth_port": 8080,
             "ollama_port": 11434,
             "status": "active"

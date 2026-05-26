@@ -25,5 +25,6 @@ O HLG servirá como uma ferramenta (Skill) para o Gemini CLI, permitindo que ele
 ## 5. Otimizações de Performance e UX (Update 2026-05-25)
 - **Image Singleton**: Todas as instâncias herdam de uma única imagem base (`hermes-agent:latest`), eliminando builds redundantes e economizando espaço em disco.
 - **Resource Monitoring**: Integração nativa com `docker stats` para visualização de CPU/MEM/NET por container.
-- **Sequential Spawn**: Fluxo de criação em dois passos (Nome -> Caminho) para maior clareza.
+- **Sequential Spawn**: Fluxo de criação unificado via [[EnvConfigModal]] para maior controle (Nome -> Caminho -> Portas).
+- **Dynamic Port Allocation**: Suporte a seleção manual de portas OAuth e Ollama por instância, com fallback para busca automática de portas livres no host.
 - **Visual Navigation**: Integração com `Yazi` (`Ctrl+O`) e Autocomplete (`TAB`) para seleção cirúrgica de diretórios de workspace.
